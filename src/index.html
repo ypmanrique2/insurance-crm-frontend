@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     index.html — Pantalla única del Insurance Contractor CRM
+     Dashboard priorizado para que María gestione sus renovaciones.
+     ============================================================ -->
+<html lang="es-CO">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insurance CRM — Dashboard de Cartera</title>
+
+    <!-- =========================================================
+    Hoja de estilos: CSS3 puro, sin frameworks, sin dependencias.
+    ========================================================= -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- =========================================================
+    CABECERA: Resumen visual de la cartera de María.
+    Muestra el total de pólizas desglosado por prioridad.
+    ========================================================= -->
+    <header class="cabecera" id="cabecera">
+        <div class="cabecera-titulo">
+            <h1>
+                <!-- Icono decorativo inline SVG para la cabecera -->
+                <svg class="icono-cabecera" width="32" height="32" viewBox="0 0 24 24"
+                     aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/>
+                </svg>
+                Cartera de María
+            </h1>
+            <p class="subtitulo">280 clientes activos · Gestión de renovaciones</p>
+        </div>
+
+        <!-- Resumen numérico: se actualiza dinámicamente desde app.js -->
+        <div class="resumen" id="resumen-cartera" role="status" aria-live="polite">
+            <div class="resumen-item resumen-total">
+                <span class="resumen-numero" id="total-politicas">0</span>
+                <span class="resumen-etiqueta">Total</span>
+            </div>
+            <div class="resumen-item resumen-critico">
+                <span class="resumen-numero" id="total-criticas">0</span>
+                <span class="resumen-etiqueta">Críticas</span>
+            </div>
+            <div class="resumen-item resumen-alerta">
+                <span class="resumen-numero" id="total-alerta">0</span>
+                <span class="resumen-etiqueta">Alerta</span>
+            </div>
+            <div class="resumen-item resumen-ok">
+                <span class="resumen-numero" id="total-ok">0</span>
+                <span class="resumen-etiqueta">Vigentes</span>
+            </div>
+            <div class="resumen-item resumen-perdido">
+                <span class="resumen-numero" id="total-perdidas">0</span>
+                <span class="resumen-etiqueta">Perdidas</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- =========================================================
+    FILTROS RÁPIDOS: Para que María pueda enfocarse en lo que
+    necesita ver: solo críticas, solo alerta, por tipo, etc.
+    ========================================================= -->
+    <section class="filtros" id="filtros" aria-label="Filtros del dashboard">
+        <div class="filtros-grupo">
+            <label for="filtro-prioridad" class="filtro-etiqueta">Prioridad:</label>
+            <select id="filtro-prioridad" class="filtro-select">
+                <option value="todos">Todas</option>
+                <option value="critica">🔴 Críticas</option>
+                <option value="alerta">🟡 Alerta</option>
+                <option value="ok">🟢 Vigentes</option>
+                <option value="perdida">⚫ Perdidas</option>
+            </select>
+        </div>
+
+        <div class="filtros-grupo">
+            <label for="filtro-estado" class="filtro-etiqueta">Estado:</label>
+            <select id="filtro-estado" class="filtro-select">
+                <option value="todos">Todos</option>
+                <option value="vigente">Vigente</option>
+                <option value="vencida">Vencida</option>
+                <option value="renovada">Renovada</option>
+                <option value="no_renovo">No renovó</option>
+            </select>
+        </div>
+
+        <div class="filtros-grupo">
+            <label for="filtro-tipo" class="filtro-etiqueta">Ramo:</label>
+            <select id="filtro-tipo" class="filtro-select">
+                <option value="todos">Todos</option>
+                <option value="auto">Auto</option>
+                <option value="hogar">Hogar</option>
+                <option value="vida">Vida</option>
+                <option value="salud">Salud</option>
+                <option value="soat">SOAT</option>
+            </select>
+        </div>
+
+        <button class="btn btn-primario" id="btn-aplicar-filtros" type="button">
+            Aplicar filtros
+        </button>
+    </section>
+
+    <!-- =========================================================
+    MENSAJE DE CARGA: Se muestra mientras se obtienen datos.
+    ========================================================= -->
+    <div id="estado-carga" class="estado-carga" aria-live="polite">
+        Cargando cartera de María...
+    </div>
+
+    <!-- =========================================================
+    MENSAJE DE ERROR: Oculto por defecto, se muestra si la API falla.
+    ========================================================= -->
+    <div id="estado-error" class="estado-error" role="alert" hidden>
+        <p>❌ No se pudieron cargar las pólizas.</p>
+        <p class="error-detalle">Verificá que el servidor Flask esté corriendo en
+        <strong>http://localhost:5000</strong>.</p>
+        <button class="btn btn-secundario" id="btn-reintentar" type="button">
+            🔄 Reintentar
+        </button>
+    </div>
+
+    <!-- =========================================================
+    LISTADO PRINCIPAL DE PÓLIZAS: Acá se renderiza dinámicamente
+    el dashboard completo con las 4 secciones de prioridad.
+    ========================================================= -->
+    <main id="lista-politicas" aria-label="Listado de pólizas">
+        <!-- El contenido se genera desde JavaScript -->
+    </main>
+
+    <!-- =========================================================
+    MODAL DE RENOVACIÓN: Aparece cuando María hace clic en "Renovar".
+    Usamos el elemento <dialog> nativo de HTML5.
+    ========================================================= -->
+    <dialog id="modal-renovar" class="modal" aria-labelledby="modal-titulo">
+        <div class="modal-contenido">
+            <h2 id="modal-titulo" class="modal-titulo">🔄 Renovar póliza</h2>
+
+            <p class="modal-politica" id="modal-politica-info">
+                Cargando información de la póliza...
+            </p>
+
+            <form id="form-renovar" class="modal-form" method="dialog">
+                <div class="form-grupo">
+                    <label for="nueva-fecha" class="form-etiqueta">
+                        Nueva fecha de vencimiento:
+                    </label>
+                    <input type="date" id="nueva-fecha" class="form-input"
+                           required min="" aria-required="true">
+                    <p class="form-ayuda">
+                        Ingresá la nueva fecha (usualmente 1 año después de la actual).
+                    </p>
+                </div>
+
+                <div class="modal-acciones">
+                    <button type="button" class="btn btn-secundario"
+                            id="btn-cancelar-renovar">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-renovar"
+                            id="btn-confirmar-renovar">
+                        ✅ Confirmar renovación
+                    </button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- =========================================================
+    SCRIPTS: Un solo archivo JS con toda la lógica del frontend.
+    Sin frameworks, sin librerías, sin transpilación.
+    ========================================================= -->
+    <script src="js/app.js"></script>
+</body>
+</html>

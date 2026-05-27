@@ -1,919 +1,530 @@
-# Análisis, Comprensión y Especificaciones del Sistema "Insurance Contractor CRM"
+# Análisis, comprensión, y especificaciones del sistema "Insurance Contractor CRM"
 
-> **Versión:** 0.1.0-SNAPSHOT | **Fecha:** 2026-05-26 | **Autor:** Yadin Paulo Manrique Márquez
-> **Estado:** Borrador en revisión
-
----
-
-## Tabla de Contenidos
-
-1. [Entendimiento del Problema](#1-entendimiento-del-problema)
-2. [Contexto Regulatorio](#2-contexto-regulatorio)
-3. [Decisiones de Alcance (MVP)](#3-decisiones-de-alcance-mvp)
-4. [Supuestos](#4-supuestos)
-5. [Arquitectura General](#5-arquitectura-general)
-6. [Modelo de Datos](#6-modelo-de-datos)
-7. [Flujos Principales del Sistema](#7-flujos-principales-del-sistema)
-8. [Estados del Ciclo de Vida de una Póliza](#8-estados-del-ciclo-de-vida-de-una-póliza)
-9. [Contratos de API REST](#9-contratos-de-api-rest)
-10. [Especificaciones del Front-end](#10-especificaciones-del-front-end)
-11. [Accesibilidad (WCAG 2.1 AA)](#11-accesibilidad-wcag-21-aa)
-12. [Estrategia Offline-First](#12-estrategia-offline-first)
-13. [Datos Semilla (Seed Data)](#13-datos-semilla-seed-data)
-14. [Stack Tecnológico](#14-stack-tecnológico)
-15. [Estructura de Proyecto](#15-estructura-de-proyecto)
-16. [Quick Start (Sin Docker)](#16-quick-start-sin-docker)
-17. [Decisiones Técnicas y Trade-offs](#17-decisiones-técnicas-y-trade-offs)
-18. [Fuera de Alcance MVP](#18-fuera-de-alcance-mvp)
-19. [Historias de Usuario](#19-historias-de-usuario)
-20. [Criterios de Aceptación (Definition of Done)](#20-criterios-de-aceptación-definition-of-done)
-21. [GitFlow](#21-gitflow)
+> **Propósito:** Este documento especifica el MVP del sistema CRM para asesores de seguros,
+> creado como parte de la prueba técnica para Agentemotor.
+> Se lee **antes** que el código. Refleja el análisis, las decisiones y los trade-offs
+> considerados antes de escribir una sola línea.
 
 ---
 
-## 1. Entendimiento del Problema
+## 1. Entendimiento del problema
 
-### 1.1 Persona Principal
+### 1.1 El dolor de María (y de 500+ asesores como ella)
 
-**María** — Asesora de seguros independiente con **280 clientes activos**, cartera mixta (auto, hogar, vida, motos, otros).
+María es una asesora de seguros con **280 clientes activos**. Su día a día implica:
 
-### 1.2 Flujo de Trabajo Actual (Problema)
+- Gestionar renovaciones de pólizas (auto, hogar, vida, etc.)
+- Hacer seguimiento manual a fechas de vencimiento
+- Registrar contactos con clientes
+- Evitar que las pólizas venzan sin que ella se dé cuenta
 
-```
-Excel gigante
-  → Lunes: filtrar pólizas que vencen ese mes
-  → Llamar cliente por cliente
-  → Marcar columna "gestionado" con una X
-  → Si renueva: actualizar fecha manualmente
-```
+Actualmente usa **un Excel gigante** donde:
 
-### 1.3 Puntos de Dolor Identificados
+| Problema | Impacto |
+|----------|---------|
+| El archivo se daña o corrompe | Pérdida de información comercial crítica |
+| Se duplican registros | Confusión sobre el estado real de la cartera |
+| No hay trazabilidad de gestiones | "No sé qué le ofrecí a quién ni cuándo" |
+| Las pólizas vencen sin alerta | **5-10 clientes perdidos al mes** — se van con otro asesor |
 
-| # | Dolor | Impacto Cuantificado |
-|---|-------|----------------------|
-| 1 | El Excel se daña, duplica y pierde contexto | Tiempo perdido rearmando el archivo |
-| 2 | Sin visibilidad de criticidad (todas las pólizas se ven igual) | Priorización inexistente |
-| 3 | Póliza vence sin que María se dé cuenta | **5–10 clientes perdidos por mes** |
-| 4 | No queda registro de qué se ofreció a quién | Cero historial de gestión |
-| 5 | No diferencia póliza vencida hace 5 días vs. 35 días | Pérdida de ventana legal de renovación |
+Eso son **60-120 clientes al año** que María pierde. En una cartera de 280,
+hablamos de hasta un **43% de fuga anual** prevenible.
 
-### 1.4 Propuesta de Valor
+### 1.2 Contexto regulatorio colombiano (crítico)
 
-Reemplazar el Excel con una herramienta que:
+La **Circular Externa de la Superintendencia Financiera de Colombia** establece:
 
-- **Muestre** qué pólizas necesitan atención hoy, ordenadas por urgencia
-- **Registre** cada acción de contacto con fecha y contexto
-- **Actualice** las pólizas renovadas en segundos
-- **Proteja** la ventana crítica de 30 días de gracia
+> Una póliza de auto vencida puede ser renovada por el **mismo intermediario**
+> dentro de los **30 días siguientes** a la fecha de vencimiento, sin que el cliente
+> pierda historial ni la aseguradora trate la operación como nueva contratación.
 
----
+**Después de 30 días**: la renovación se considera nueva contratación y el asesor
+compite en igualdad de condiciones con cualquier otro intermediario.
 
-## 2. Contexto Regulatorio
+**Consecuencia**: una póliza vencida hace 5 días NO es lo mismo que una vencida
+hace 35. La ventana de 30 días es el **factor crítico** que determina la prioridad
+de gestión.
 
-> **Jurisdicción:** Colombia — SOAT y seguros de intermediación
+### 1.3 Lo que el sistema debe resolver
 
-### 2.1 Ventana de Gracia (Regla de Negocio Crítica)
-
-```
-Vencimiento
-    │
-    ├─── 0 días ──────── Vencimiento exacto
-    │
-    ├─── +30 días ─────── VENTANA DE GRACIA
-    │                    ↳ El mismo intermediario puede renovar
-    │                    ↳ El cliente NO pierde historial
-    │                    ↳ La aseguradora NO trata la op. como nueva contratación
-    │
-    └─── +31 días ─────── NUEVA CONTRATACIÓN
-                         ↳ El asesor compite con cualquier otro intermediario
-                         ↳ Pérdida efectiva del cliente
-```
-
-**Una póliza vencida hace 5 días ≠ una póliza vencida hace 35 días.**
-Esta distinción debe ser el eje central de la experiencia de usuario.
-
-### 2.2 Aplicación en el MVP
-
-La lógica de los 30 días calendario de gracia se aplicará como **regla de negocio general** para todos los tipos de póliza en este MVP (auto, moto, hogar, vida, etc.), con el propósito de simplificar sin perder el valor principal.
+| Necesidad | Cómo se cubre en el MVP |
+|-----------|------------------------|
+| Ver qué pólizas están por vencer | Dashboard priorizado con semáforo (crítico, alerta, vigente) |
+| Saber hace cuánto venció una póliza | Indicador de días de vencido + badge de ventana de 30 días |
+| Registrar gestión comercial | Botón "Contactado" que actualiza `last_contact_date` |
+| Procesar renovación | Botón "Renovar" con ingreso de nueva fecha de vencimiento |
+| No perder trazabilidad | Cada acción queda registrada en la base de datos con timestamp |
+| Accesibilidad visual | Semaforización con colores + iconos (no solo color) |
 
 ---
 
-## 3. Decisiones de Alcance (MVP)
+## 2. Decisiones de alcance (MVP)
 
-### 3.1 Qué se construye
+### 2.1 Qué se construye
 
-**Foco único:** Visibilidad y gestión de renovaciones dentro de la ventana crítica de 30 días.
+| Componente | Decisión | Justificación |
+|------------|----------|---------------|
+| **Backend** | Python + Flask | Simplicidad, sintaxis clara, mínimas dependencias. La prueba pide stack libre y Flask es lo más directo para una API REST rápida. |
+| **API REST** | 3 endpoints | Los justos y necesarios: listar pólizas, marcar contacto, renovar. Sin sobreingeniería. |
+| **Frontend** | Vanilla JS + HTML5 + CSS3 puro | Carga instantánea, sin compilación, sin framework. Funciona en cualquier navegador moderno. |
+| **Persistencia** | SQLite | Preferido por la prueba. No requiere servidor de base de datos. Portátil. |
+| **Dashboard** | Pantalla única priorizada | Una sola vista: lo urgente arriba, lo demás abajo. Sin navegación compleja. |
+| **Seed data** | 280 clientes con ~320 pólizas | Datos realistas desde el primer `pip install` + `python seed.py`. |
+| **Tests** | 3 tests del caso crítico | Validan la lógica de la ventana de 30 días, el prioritización y la renovación. |
+| **Comentarios** | Español colombiano | Código comentado en el idioma del asesor. Facilita el mantenimiento. |
 
-| Módulo | Descripción |
-|--------|-------------|
-| Dashboard de priorización | Vista única con pólizas ordenadas por criticidad, colores semáforo accesibles |
-| Acciones rápidas | One-click: Contactado, Renovado (solicita nueva fecha), No Renovó |
-| API RESTful | Back-end Java 21 con Virtual Threads para las operaciones del front-end |
-| Persistencia local | SQLite sin Docker — portabilidad máxima |
-| Offline-first | Guarda confirmaciones de renovación y reintenta cuando hay conexión |
-| Datos semilla | Seed data preconfigurada para demostración inmediata |
-| CRUD básico de clientes | Formulario de creación de nuevo cliente (si queda tiempo, incluido como historia de usuario) |
+### 2.2 Qué se deja fuera (y por qué)
 
-### 3.2 Qué NO se construye en MVP (y por qué)
-
-| Funcionalidad | Razón de exclusión |
-|---------------|--------------------|
-| Autenticación JWT / OAuth 2 | Alcance es validar solución para un usuario único. Login suma complejidad sin valor para el evaluador. Es la siguiente historia de usuario. |
-| Integración con APIs de aseguradoras | Requiere credenciales de terceros no disponibles. Se diseña el módulo pero no se implementa. |
-| Reportes y estadísticas avanzadas | No es el dolor principal. Puede derivarse de los datos ya almacenados. |
-| Notificaciones push / email automáticos | La herramienta es activa (María decide cuándo actúa). Push es siguiente fase. |
-| Multi-tenancy (varios asesores) | MVP valida el modelo con un asesor. La arquitectura debe soportar escalar después. |
-
----
-
-## 4. Supuestos
-
-1. **Foco en regla de los 30 días:** Aplica para todos los tipos de póliza del MVP.
-2. **Ejecución local:** El evaluador tiene Java 21 y Node.js instalados, o puede instalarlos. La asesora, una vez desplegada la app, no necesita tenerlos.
-3. **Sin concurrencia masiva:** Un asesor por ahora. SQLite lo maneja bien por defecto en este volumen.
-4. **Renovación manual:** La asesora confirma la renovación manualmente. El sistema no conecta en tiempo real con la aseguradora.
-5. **Idioma back-end:** Todo en inglés — código, comentarios, logs técnicos — pensando en potencial venta a inversores extranjeros.
-6. **Idioma front-end / mensajes funcionales:** En español, ya que la asesora y sus clientes son hispanohablantes.
-7. **Zona horaria:** Colombia (UTC-5). El cálculo de vencimiento y ventana de gracia usa la fecha local colombiana.
+| Excluido | Justificación |
+|----------|---------------|
+| **Autenticación / Login** | María es la única usuaria. Implementar auth suma complejidad sin valor para el alcance de la prueba. La prueba explícitamente lo valida como decisión válida. |
+| **Docker / Contenerización** | Prohibido explícitamente por las reglas del reto. |
+| **Integración con aseguradoras** | Requeriría acceso a APIs de 14 aseguradoras colombianas. Fuera del alcance. María ingresa fechas manualmente. |
+| **CRUD completo de clientes** | El MVP arranca con datos precargados. La base de datos lo soporta, pero la interfaz no expone creación de clientes en esta versión. |
+| **Notificaciones push / email** | Serían valiosas pero agregarían complejidad de infraestructura. María usa la app activamente. |
+| **Historial de renovaciones anteriores** | Se almacena el último contacto, no el histórico completo. Suficiente para el MVP. |
+| **Roles y permisos** | Un solo asesor, un solo rol. |
+| **Modo offline / PWA** | La app corre localmente, siempre hay conexión a la API local. |
+| **Framework CSS** | CSS3 puro. Sin Bootstrap, Tailwind, ni dependencias frontend. |
 
 ---
 
-## 5. Arquitectura General
+## 3. Supuestos
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    FRONT-END (React 19)                     │
-│                                                             │
-│  Dashboard ──► PolicyCard ──► ActionButtons                 │
-│  (priorización)   (semáforo)    (Contactar / Renovar / ...)  │
-│                                                             │
-│  OfflineQueue  ──► sync cuando hay conexión                 │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTP REST (JSON)
-                           │ /api/v1/...
-┌──────────────────────────▼──────────────────────────────────┐
-│                   BACK-END (Java 21)                        │
-│                                                             │
-│  PolicyController ──► PolicyService ──► PolicyRepository    │
-│  ClientController ──► ClientService ──► ClientRepository    │
-│                                                             │
-│  Virtual Threads (spring.threads.virtual.enabled=true)      │
-│  Clean Architecture: api / application / domain / infra     │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ JDBC
-┌──────────────────────────▼──────────────────────────────────┐
-│                    SQLite (archivo local)                   │
-│           tractor_insurance_crm.db                          │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 5.1 Capas (Clean Architecture)
-
-```
-com.insurance-crm/
-├── api/              ← Controllers, DTOs de entrada/salida, GlobalExceptionHandler
-├── application/      ← Use cases / Services (lógica de orquestación)
-├── domain/           ← Entities, Value Objects, reglas de negocio puras (sin Spring)
-│   ├── model/        ← Policy, Client, PolicyStatus
-│   └── service/      ← PolicyExpirationService (cálculo de ventana de gracia)
-└── infrastructure/   ← Repositories (JPA/SQLite), Config, Seeders
-```
+| Supuesto | Fundamento |
+|----------|------------|
+| **Foco en autos** | Aunque el modelo soporta múltiples ramos (hogar, vida, etc.), la lógica de los 30 días de gracia se aplica transversalmente en el MVP para simplificar. Agentemotor es principalmente auto. |
+| **Python 3.9+ disponible** | El evaluador tiene Python 3.9+ instalado. Si no, el README indica cómo instalarlo. |
+| **Entorno local/limpio** | La app se ejecuta en localhost. No se requieren servicios cloud ni credenciales externas. |
+| **SQLite sin concurrencia** | Al ser herramienta de un solo usuario, SQLite maneja el volumen sin bloqueos transaccionales pesados. |
+| **María ingresa fechas manualmente** | No hay integración automática con aseguradoras. Las renovaciones se registran a mano. |
+| **Navegador moderno** | El frontend usa Fetch API, CSS Grid, y ES6+. Compatible con Chrome, Firefox, Edge, Safari (2 versiones recientes). |
 
 ---
 
-## 6. Modelo de Datos
-
-### 6.1 Tabla `clients`
-
-| Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | Identificador único |
-| `name` | `TEXT NOT NULL` | Nombre completo del cliente |
-| `phone` | `TEXT` | Teléfono de contacto principal |
-| `email` | `TEXT` | Correo electrónico |
-| `notes` | `TEXT` | Observaciones generales del asesor |
-| `created_at` | `DATETIME DEFAULT CURRENT_TIMESTAMP` | Fecha de creación |
-| `updated_at` | `DATETIME DEFAULT CURRENT_TIMESTAMP` | Última modificación |
-
-### 6.2 Tabla `policies`
-
-| Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | Identificador único |
-| `client_id` | `INTEGER NOT NULL REFERENCES clients(id)` | Relación con el cliente |
-| `policy_number` | `TEXT NOT NULL` | Número de póliza de la aseguradora |
-| `insurance_company` | `TEXT NOT NULL` | Nombre de la aseguradora |
-| `policy_type` | `TEXT NOT NULL` | AUTO, MOTO, HOGAR, VIDA, OTRO |
-| `expiration_date` | `DATE NOT NULL` | Fecha de vencimiento vigente |
-| `status` | `TEXT NOT NULL DEFAULT 'PENDING'` | Ver sección 8 — Estados |
-| `last_contact_date` | `DATETIME` | Última vez que María llamó |
-| `contact_notes` | `TEXT` | Qué se habló en el último contacto |
-| `created_at` | `DATETIME DEFAULT CURRENT_TIMESTAMP` | Creación del registro |
-| `updated_at` | `DATETIME DEFAULT CURRENT_TIMESTAMP` | Última modificación |
-
-> **Nota sobre `status`:** El estado "calculado" (si vence pronto, si está en gracia, etc.) se deriva dinámicamente en el dominio comparando `expiration_date` vs. `LocalDate.now()`. El campo `status` almacena el estado de **gestión** de María (PENDING, CONTACTED, RENEWED, LOST), no el estado temporal de la póliza. Esta separación permite hacer queries eficientes y mantener el historial.
-
-### 6.3 Tabla `renewal_sync_queue` (Offline-First)
-
-| Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | Identificador |
-| `policy_id` | `INTEGER NOT NULL` | Póliza afectada |
-| `action` | `TEXT NOT NULL` | RENEW, CONTACT, LOST |
-| `payload` | `TEXT` | JSON con los datos de la acción |
-| `sync_status` | `TEXT DEFAULT 'PENDING'` | PENDING, SYNCED, FAILED |
-| `attempts` | `INTEGER DEFAULT 0` | Intentos de sincronización |
-| `created_at` | `DATETIME DEFAULT CURRENT_TIMESTAMP` | Cuándo se creó |
-| `synced_at` | `DATETIME` | Cuándo se sincronizó exitosamente |
-
----
-
-## 7. Flujos Principales del Sistema
-
-### 7.1 Flujo de Descubrimiento (Carga Inicial)
-
-```
-María abre la app
-        │
-        ▼
-GET /api/v1/policies?sort=priority
-        │
-        ▼
-Back-end calcula criticidad por póliza:
-  1. VENCIDAS EN GRACIA (0-30 días vencida) → ROJO     ← Prioridad máxima
-  2. POR VENCER (0-30 días para vencer)     → AMARILLO
-  3. VIGENTES (>30 días para vencer)        → VERDE
-  4. PERDIDAS (>30 días vencida)            → GRIS
-        │
-        ▼
-Dashboard renderiza lista ordenada con colores semáforo
-```
-
-### 7.2 Flujo de Gestión (Marcar Contactado)
-
-```
-María llama al cliente
-        │
-        ▼
-Clic en "Marcar Contactado" en la PolicyCard
-        │
-        ▼
-PATCH /api/v1/policies/{id}/contact
-  body: { contactNotes: "Interesado, llama mañana" }
-        │
-        ▼
-Back-end actualiza:
-  - last_contact_date = now()
-  - status = CONTACTED
-  - contact_notes = payload
-        │
-        ▼
-Card actualiza visualmente (badge "Contactado" + timestamp)
-```
-
-### 7.3 Flujo de Renovación
-
-```
-Cliente acepta renovar
-        │
-        ▼
-Clic en "Registrar Renovación"
-        │
-        ▼
-Modal solicita: nueva fecha de vencimiento
-  (default: expiration_date + 1 año, editable)
-        │
-        ▼
-POST /api/v1/policies/{id}/renew
-  body: { newExpirationDate: "2027-05-26" }
-        │
-        ┌──── ¿Hay conexión? ────┐
-        │ SÍ                     │ NO
-        ▼                        ▼
-Back-end actualiza:       Guarda en renewal_sync_queue
-  - expiration_date       Muestra badge "Pendiente de sync"
-  - status = RENEWED      Reintenta en background
-  - last_contact_date
-        │
-        ▼
-Póliza regresa a estado VERDE en el dashboard
-```
-
-### 7.4 Flujo "No Renovó"
-
-```
-Clic en "No Renovó"
-        │
-        ▼
-Confirmación rápida: "¿Confirmas que el cliente no renovará?"
-        │
-        ▼
-PATCH /api/v1/policies/{id}/lost
-  body: { contactNotes: "Razón opcional" }
-        │
-        ▼
-Back-end actualiza: status = LOST
-Card pasa a sección inferior / estado PERDIDO
-```
-
----
-
-## 8. Estados del Ciclo de Vida de una Póliza
-
-### 8.1 Estados de Gestión (campo `status`)
-
-| Estado | Código BE | Descripción | Transiciones posibles |
-|--------|-----------|-------------|----------------------|
-| Sin gestión | `PENDING` | Estado inicial. María no ha actuado aún. | → CONTACTED, RENEWED, LOST |
-| Contactado | `CONTACTED` | María llamó. En espera de decisión del cliente. | → RENEWED, LOST, PENDING |
-| Renovado | `RENEWED` | Éxito. Nueva fecha registrada. | → PENDING (si se crea nueva póliza) |
-| No renovó | `LOST` | El cliente decidió no renovar. | — (terminal en este ciclo) |
-
-### 8.2 Estados Calculados (derivados de `expiration_date` vs. fecha actual)
-
-Estos estados **no se almacenan** en base de datos; se computan en `PolicyExpirationService`.
-
-| Estado Calculado | Condición | Prioridad | Color UI | Icono WCAG |
-|------------------|-----------|-----------|----------|------------|
-| `EXPIRING_SOON` | `0 <= días_para_vencer <= 30` | Alta | `#B45309` (amarillo oscuro AA) | ⏰ reloj |
-| `IN_GRACE_WINDOW` | `0 < días_vencida <= 30` | **Máxima** | `#B91C1C` (rojo oscuro AA) | 🔴 círculo + número de días |
-| `ACTIVE` | `días_para_vencer > 30` | Normal | `#15803D` (verde oscuro AA) | ✓ check |
-| `LOST` | `días_vencida > 30` | Archivada | `#6B7280` (gris neutro) | 🔒 candado |
-
-> **Nota WCAG 2.1 AA:** Los colores indicados superan relación de contraste ≥ 4.5:1 sobre fondo blanco (`#FFFFFF`) y fondo gris claro (`#F9FAFB`). El color nunca es el único indicador — siempre hay icono y texto descriptivo (no depender únicamente del semáforo para daltonismo).
-
----
-
-## 9. Contratos de API REST
-
-Base URL: `http://localhost:8080/api/v1`
-
-### 9.1 `GET /policies`
-
-Retorna lista de pólizas enriquecida con datos del cliente, ordenada por criticidad.
-
-**Query params opcionales:**
-
-| Param | Valores | Descripción |
-|-------|---------|-------------|
-| `calculatedStatus` | `IN_GRACE_WINDOW`, `EXPIRING_SOON`, `ACTIVE`, `EXPIRED_LOST` | Filtrar por estado calculado |
-| `status` | `PENDING`, `CONTACTED`, `RENEWED`, `LOST` | Filtrar por estado de gestión |
-| `sort` | `priority` (default), `expiration_date`, `client_name` | Ordenamiento |
-
-**Response 200:**
-```json
-{
-  "content": [
-    {
-      "id": 1,
-      "policyNumber": "AUTO-2024-001234",
-      "insuranceCompany": "Seguros Bolívar",
-      "policyType": "AUTO",
-      "expirationDate": "2026-05-20",
-      "status": "PENDING",
-      "calculatedStatus": "IN_GRACE_WINDOW",
-      "daysUntilExpiration": -6,
-      "daysInGraceWindow": 6,
-      "lastContactDate": null,
-      "contactNotes": null,
-      "client": {
-        "id": 42,
-        "name": "Carlos Ramírez",
-        "phone": "+57 310 555 0001",
-        "email": "carlos.ramirez@email.com"
-      }
-    }
-  ],
-  "totalElements": 28,
-  "page": 0,
-  "size": 20
-}
-```
-
-### 9.2 `PATCH /policies/{id}/contact`
-
-Registra que María realizó contacto.
-
-**Request body:**
-```json
-{
-  "contactNotes": "Interesado, llama el viernes"
-}
-```
-
-**Response 200:** Póliza actualizada completa.
-
-**Response 404:** `{ "code": "POLICY_NOT_FOUND", "message": "Policy with id {id} not found" }`
-
-### 9.3 `POST /policies/{id}/renew`
-
-Renueva la póliza con nueva fecha de vencimiento.
-
-**Request body:**
-```json
-{
-  "newExpirationDate": "2027-05-26",
-  "contactNotes": "Renovó por un año más. Pago en efectivo."
-}
-```
-
-**Validaciones:**
-- `newExpirationDate` requerido, formato `YYYY-MM-DD`
-- `newExpirationDate` debe ser posterior a `LocalDate.now()`
-- La póliza no debe estar en estado `EXPIRED_LOST` (>30 días vencida) sin confirmación explícita
-
-**Response 200:** Póliza actualizada.
-**Response 400:** `{ "code": "INVALID_EXPIRATION_DATE", "message": "New expiration date must be in the future" }`
-
-### 9.4 `PATCH /policies/{id}/lost`
-
-Registra que el cliente decidió no renovar.
-
-**Request body:**
-```json
-{
-  "contactNotes": "Se fue con AXA. Dice que fue por precio."
-}
-```
-
-**Response 200:** Póliza actualizada.
-
-### 9.5 `GET /policies/{id}`
-
-Detalle completo de una póliza con historial resumido.
-
-### 9.6 `GET /clients`
-
-Lista de clientes (para futura funcionalidad de CRUD).
-
-### 9.7 `POST /clients`
-
-Crear nuevo cliente (incluido si queda tiempo en MVP).
-
-**Request body:**
-```json
-{
-  "name": "Laura Gómez",
-  "phone": "+57 320 555 0099",
-  "email": "laura.gomez@email.com",
-  "notes": "Referida por Carlos Ramírez"
-}
-```
-
-### 9.8 Manejo de Errores (Global)
-
-```json
-{
-  "timestamp": "2026-05-26T14:30:00",
-  "status": 400,
-  "code": "VALIDATION_ERROR",
-  "message": "New expiration date must be in the future",
-  "path": "/api/v1/policies/1/renew"
-}
-```
-
-Códigos de error de dominio:
-- `POLICY_NOT_FOUND`
-- `CLIENT_NOT_FOUND`
-- `INVALID_EXPIRATION_DATE`
-- `POLICY_ALREADY_RENEWED`
-- `VALIDATION_ERROR`
-
----
-
-## 10. Especificaciones del Front-end
-
-### 10.1 Stack
-
-| Tecnología | Versión | Justificación |
-|-----------|---------|---------------|
-| React | 19 | Nuevo modelo de reactividad, compilador que elimina `useMemo`/`useCallback` innecesarios |
-| Vite | 6.x | Build ultrarrápido, DX superior para MVP |
-| TypeScript | 5.x | Tipado estricto, contratos claros con el back-end |
-| TailwindCSS | 4.x | Utilidades CSS, diseño responsive rápido |
-| Axios | 1.x | Cliente HTTP con interceptors para el offline-queue |
-| React Query | 5.x | Cache, revalidación y estados de carga/error |
-
-> **Nota Ionic/Capacitor:** La arquitectura React + Vite es compatible con Ionic 8 / Capacitor 6 para empaquetado móvil (iOS, Android, PWA) en una siguiente fase. No se implementa en el MVP pero el proyecto se estructura para soportarlo.
-
-### 10.2 Pantalla Principal — Dashboard
+## 4. Arquitectura del sistema
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  🚜 Insurance CRM    [Buscar cliente...]    [+ Nuevo]   │
-├─────────────────────────────────────────────────────────┤
-│  FILTROS: [Todas] [En Gracia 🔴 6] [Por Vencer 🟡 12]  │
-│          [Vigentes ✓ 241] [Archivadas 21]               │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  🔴 EN VENTANA DE GRACIA — 6 pólizas                    │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ Carlos Ramírez           AUTO-2024-001234        │   │
-│  │ Seguros Bolívar · AUTO   Vencida hace 6 días    │   │
-│  │ 📞 +57 310 555 0001                              │   │
-│  │ [Contactar]  [Renovar]  [No Renovó]             │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
-│  🟡 VENCEN ESTE MES — 12 pólizas                        │
-│  ...                                                    │
-│                                                         │
-│  ✓ VIGENTES — 241 pólizas                              │
-│  ...                                                    │
-│                                                         │
+│                   NAVEGADOR (Cliente)                    │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │          Pantalla única (index.html)              │   │
+│  │  ┌─────────┐ ┌──────────┐ ┌──────────────────┐  │   │
+│  │  │  CSS3   │ │ Vanilla  │ │  Iconos SVG      │  │   │
+│  │  │ puro    │ │ JS (ES6) │ │  (accesibilidad) │  │   │
+│  │  └─────────┘ └──────────┘ └──────────────────┘  │   │
+│  └──────────────────────────────────────────────────┘   │
+│                        ↕ Fetch API (HTTP)               │
+└─────────────────────────────────────────────────────────┘
+                         │
+┌─────────────────────────────────────────────────────────┐
+│              BACKEND (Flask - Puerto 5000)               │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│  │  app.py  │ │models.py │ │routes.py │ │ seed.py  │   │
+│  │(entrada) │ │(modelos) │ │(3 endpoints)│ │(datos)  │   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │
+│                        ↕                                │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │              SQLite (insurance_crm.db)            │   │
+│  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 10.3 Componentes Principales
+### 4.1 Principios arquitectónicos
 
-| Componente | Responsabilidad |
-|-----------|----------------|
-| `Dashboard` | Orquestador principal, maneja filtros y ordenamiento |
-| `PolicyCard` | Tarjeta de póliza con estado visual y acciones |
-| `PolicyStatusBadge` | Badge de estado calculado (semáforo accesible) |
-| `ContactModal` | Modal para registrar contacto con notas |
-| `RenewModal` | Modal para registrar renovación con nueva fecha |
-| `OfflineBanner` | Banner de advertencia cuando no hay conexión |
-| `SyncStatusIndicator` | Indicador de sincronización pendiente |
-| `ClientForm` | Formulario de creación de cliente (si aplica) |
+- **Separación de responsabilidades**: modelos, rutas, configuración y seed data
+  en archivos separados.
+- **API RESTful**: endpoints con naming consistente (`/api/v1/...`), métodos HTTP
+  semánticos (GET, PATCH, POST).
+- **Stateless**: el backend no mantiene estado de sesión. Todo el estado está en
+  SQLite.
+- **Frontend como estático**: Flask sirve los archivos del frontend desde
+  `insurance-crm-frontend/src/`.
 
-### 10.4 Manejo de Estado
+---
+
+## 5. Estructura del proyecto
 
 ```
-PolicyCard → onClick "Contactar"
-  → abre ContactModal
-  → onConfirm → useMutation (React Query)
-    → PATCH /api/v1/policies/{id}/contact
-    → onSuccess → invalidate query policies → re-render automático
-    → onError → mostrar toast de error
+InsuranceContractorCRM/                      # Carpeta raíz (a renombrar como manrique_yadin/)
+├── spec.md                                  # ← ESTE ARCHIVO
+├── README.md                                # Cómo correrlo + decisiones + reflexión
+├── code_review.md                           # Review del snippet Flask
+├── agents.md                                # Skills para el agente IA
+│
+├── ai_history/                              # Historial de conversación con IA (OBLIGATORIO)
+│   ├── 01_planeacion.md
+│   ├── 02_implementacion.md
+│   ├── 03_code_review.md
+│   └── ...
+│
+├── insurance-crm-backend/                   # Backend Python + Flask
+│   ├── .gitignore
+│   ├── LICENSE
+│   ├── src/
+│   │   ├── __init__.py
+│   │   ├── app.py                           # Punto de entrada + config
+│   │   ├── models.py                        # Modelos SQLite (clients, policies)
+│   │   ├── routes.py                        # Endpoints de la API REST
+│   │   ├── seed.py                          # Generación de datos de prueba (~280 clientes)
+│   │   └── db.py                            # Conexión e inicialización de BD
+│   ├── tests/
+│   │   ├── __init__.py
+│   │   ├── test_policies.py                 # Tests del caso crítico (ventana 30 días)
+│   │   └── conftest.py                      # Fixtures de prueba
+│   └── requirements.txt                     # Flask, pytest
+│
+└── insurance-crm-frontend/                  # Frontend Vanilla JS + HTML5 + CSS3
+    ├── .gitignore
+    ├── LICENSE
+    ├── src/
+    │   ├── index.html                       # Pantalla principal (única)
+    │   ├── css/
+    │   │   └── styles.css                   # CSS3 puro (semaforización, layout, iconos)
+    │   ├── js/
+    │   │   └── app.js                       # Vanilla JS (ES6) — lógica de frontend
+    │   └── assets/
+    │       └── icons/                       # Iconos SVG para accesibilidad visual
+    └── tests/
+        └── (pruebas de frontend si aplican)
 ```
 
 ---
 
-## 11. Accesibilidad (WCAG 2.1 AA)
+## 6. Modelo de datos
 
-> El estándar vigente es **WCAG 2.1 AA** (no 2.0). La próxima versión es WCAG 2.2 (2023), que añade criterios de focus y targets — implementar donde sea posible.
+### 6.1 Diagrama entidad-relación
 
-### 11.1 Reglas Críticas
+```
+┌─────────────────┐       ┌──────────────────────────┐
+│     clients     │       │        policies           │
+├─────────────────┤       ├──────────────────────────┤
+│ id (PK)         │──┐    │ id (PK)                  │
+│ name            │  │    │ client_id (FK) ──────────┤
+│ phone           │  └─── │ policy_number             │
+│ email           │       │ insurance_company         │
+│ advisor_id      │       │ policy_type               │
+│ created_at      │       │ expiration_date           │
+└─────────────────┘       │ status                    │
+                           │ last_contact_date         │
+                           │ created_at                │
+                           └──────────────────────────┘
+```
 
-1. **Color no es el único indicador:** Cada estado lleva icono + texto descriptivo además del color.
-2. **Contraste mínimo 4.5:1** para texto normal, 3:1 para texto grande (≥18pt o ≥14pt bold).
-3. **Targets táctiles ≥ 44×44 px** en botones de acción (WCAG 2.2 criterio 2.5.8).
-4. **Navegación por teclado completa:** Tab, Enter, Esc en modales.
-5. **ARIA labels** en botones con solo iconos.
-6. **Focus visible** con outline de al menos 2px de contraste.
-7. **Mensajes de estado** anunciados a lectores de pantalla con `role="status"` o `aria-live`.
+### 6.2 Tabla: `clients`
 
-### 11.2 Paleta de Colores Accesible
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | INTEGER (PK) | Identificador único del cliente |
+| `name` | TEXT (NOT NULL) | Nombre completo del cliente |
+| `phone` | TEXT | Número de contacto |
+| `email` | TEXT | Correo electrónico |
+| `advisor_id` | TEXT (NOT NULL) | Identificador del asesor. Para el MVP, siempre `'maria'` |
+| `created_at` | TIMESTAMP | Fecha de creación del registro |
 
-| Estado | Color HEX | Contraste sobre #FFFFFF | Contraste sobre #F9FAFB |
-|--------|-----------|------------------------|------------------------|
-| Rojo (gracia) | `#B91C1C` | 7.0:1 ✅ | 6.8:1 ✅ |
-| Amarillo (por vencer) | `#B45309` | 4.7:1 ✅ | 4.6:1 ✅ |
-| Verde (vigente) | `#15803D` | 5.1:1 ✅ | 5.0:1 ✅ |
-| Gris (archivada) | `#374151` | 9.7:1 ✅ | 9.5:1 ✅ |
+### 6.3 Tabla: `policies`
 
-> Verificar con [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/) antes de producción.
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | INTEGER (PK) | Identificador único de la póliza |
+| `client_id` | INTEGER (FK → clients.id) | Cliente propietario de la póliza |
+| `policy_number` | TEXT (NOT NULL) | Número de póliza (único por aseguradora) |
+| `insurance_company` | TEXT (NOT NULL) | Aseguradora (ej: "Sura", "Bolívar", "Mapfre") |
+| `policy_type` | TEXT (NOT NULL) | Tipo: `auto`, `hogar`, `vida`, `salud`, `soat` |
+| `expiration_date` | DATE (NOT NULL) | Fecha de vencimiento de la póliza |
+| `status` | TEXT (NOT NULL) | Estado: `vigente`, `vencida`, `renovada`, `no_renovo` |
+| `last_contact_date` | TIMESTAMP | Última fecha de contacto registrada por el asesor |
+| `created_at` | TIMESTAMP | Fecha de creación del registro |
+
+### 6.4 Estados posibles de una póliza
+
+```
+                    ┌──────────┐
+                    │ vigente  │
+                    └────┬─────┘
+                         │ (llega la fecha de vencimiento)
+                         ▼
+                    ┌──────────┐
+              ┌─────│ vencida  │─────┐
+              │     └──────────┘     │
+              ▼                      ▼
+     ┌──────────────┐       ┌──────────────┐
+     │  renovada    │       │  no_renovo   │
+     │(nueva fecha) │       │(se perdió el │
+     └──────────────┘       │   cliente)   │
+                            └──────────────┘
+```
+
+### 6.5 Priorización (lógica de negocio)
+
+La prioridad se calcula **dinámicamente** en cada request, combinando:
+
+| Estado | Prioridad | Color | Icono | Criterio |
+|--------|-----------|-------|-------|----------|
+| `vencida` + días ≤ 30 | **Crítica** | 🔴 Rojo | ⚠️ | Ventana de 30 días activa. El asesor PUEDE renovar. **URGENTE** |
+| `vencida` + días > 30 | **Perdida** | ⚫ Negro | ❌ | Ventana de 30 días vencida. El asesor YA NO PUEDE renovar como tal. |
+| `vigente` + vence en ≤ 30 días | **Alerta** | 🟡 Amarillo | 🔔 | Vence pronto. El asesor DEBE contactar. |
+| `vigente` + vence en > 30 días | **OK** | 🟢 Verde | ✅ | Vigente. Sin acción urgente. |
+| `renovada` | **OK** | 🟢 Verde | ✅ | Gestionada exitosamente. |
+| `no_renovo` | **Perdida** | ⚫ Negro | ❌ | Cliente perdido. |
+
+> **Nota de accesibilidad**: La prioridad NUNCA se comunica solo con color.
+> Siempre va acompañada de icono SVG + etiqueta de texto, garantizando
+> que asesores con daltonismo puedan usar la herramienta sin fricción.
 
 ---
 
-## 12. Estrategia Offline-First
+## 7. Endpoints de la API REST
 
-### 12.1 Problema
+### 7.1 `GET /api/v1/policies`
 
-Si el endpoint del asesor no tiene acceso a internet, la confirmación de renovación no debe perderse.
+Lista todas las pólizas del asesor, priorizadas por criticidad.
 
-### 12.2 Solución: Cola de Sincronización Local
+**Query params:**
 
-```
-Acción del usuario (Renovar/Contactar)
-        │
-        ├─── navigator.onLine === true ──► API Call directo
-        │                                   │ OK → actualiza UI
-        │                                   │ Error red → guarda en cola
-        │
-        └─── navigator.onLine === false ──► Guarda en localStorage queue
-                                            Badge "Pendiente de sync"
-                                            
-window.addEventListener('online')
-        │
-        ▼
-SyncService.processQueue()
-  → Itera cola, reintenta cada operación pendiente
-  → onSuccess → elimina de cola, marca SYNCED
-  → onError (500) → incrementa attempts, marca FAILED tras 3 intentos
-  → notifica al usuario resultado del sync
-```
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| `status` | string | `todos` | Filtro: `vigente`, `vencida`, `renovada`, `no_renovo` |
+| `priority` | string | `todos` | Filtro: `critica`, `alerta`, `ok`, `perdida` |
+| `policy_type` | string | `todos` | Filtro: `auto`, `hogar`, `vida`, `salud`, `soat` |
+| `advisor_id` | string | `maria` | Asesor (para el MVP solo existe María) |
 
-### 12.3 Back-end
-
-El back-end también persiste la cola en `renewal_sync_queue` para tener registro auditable. El front-end puede consultar `GET /api/v1/sync-queue/pending` para reconciliar estado si hay discrepancia.
-
----
-
-## 13. Datos Semilla (Seed Data)
-
-### 13.1 Distribución de Muestra
-
-Para que el evaluador vea valor inmediato al abrir la app:
-
-| Categoría | Cantidad | Propósito |
-|-----------|----------|-----------|
-| Pólizas EN ventana de gracia | 6 | Ver el rojo, probar Renovar |
-| Pólizas que vencen en ≤ 30 días | 12 | Ver el amarillo, probar Contactar |
-| Pólizas vigentes | 15 | Ver el verde |
-| Pólizas archivadas (> 30 días vencidas) | 3 | Ver estado final |
-| Clientes | 10 | Varios clientes con múltiples pólizas |
-
-### 13.2 Configuración
-
-```java
-// DataSeeder.java — @Component que verifica si ya hay datos antes de insertar
-@PostConstruct
-public void seed() {
-    if (clientRepository.count() == 0) {
-        insertSampleData();
-        log.info("[DataSeeder] Sample data loaded successfully — {} clients, {} policies",
-                 CLIENT_COUNT, POLICY_COUNT);
+**Response `200 OK`:**
+```json
+{
+  "total": 320,
+  "criticas": 3,
+  "alerta": 4,
+  "ok": 310,
+  "perdidas": 3,
+  "policies": [
+    {
+      "id": 1,
+      "client": {
+        "name": "Carlos Méndez",
+        "phone": "3001234567"
+      },
+      "policy_number": "AUTO-2026-001",
+      "insurance_company": "Sura",
+      "policy_type": "auto",
+      "expiration_date": "2026-05-15",
+      "status": "vencida",
+      "priority": "critica",
+      "days_overdue": 12,
+      "days_remaining_window": 18,
+      "last_contact_date": null,
+      "recommended_action": "Contactar urgentemente. Ventana de 30 días activa: quedan 18 días."
     }
+  ]
+}
+```
+
+### 7.2 `PATCH /api/v1/policies/{id}/contact`
+
+Registra que el asesor contactó al cliente de esta póliza.
+
+**Request body:**
+```json
+{
+  "notes": "Cliente dice que va a renovar la semana que viene"
+}
+```
+
+**Response `200 OK`:**
+```json
+{
+  "id": 1,
+  "status": "vencida",
+  "priority": "critica",
+  "last_contact_date": "2026-05-27T14:30:00Z",
+  "message": "Contacto registrado exitosamente"
+}
+```
+
+### 7.3 `POST /api/v1/policies/{id}/renew`
+
+Procesa la renovación de una póliza.
+
+**Request body:**
+```json
+{
+  "new_expiration_date": "2027-05-15"
+}
+```
+
+**Response `200 OK`:**
+```json
+{
+  "id": 1,
+  "status": "renovada",
+  "previous_expiration_date": "2026-05-15",
+  "new_expiration_date": "2027-05-15",
+  "message": "Póliza renovada exitosamente hasta el 2027-05-15"
+}
+```
+
+**Response `400 Bad Request`:**
+```json
+{
+  "error": "La nueva fecha de vencimiento debe ser posterior a la actual"
 }
 ```
 
 ---
 
-## 14. Stack Tecnológico
+## 8. Flujos principales del sistema
 
-| Capa | Tecnología | Versión |
-|------|-----------|---------|
-| Back-end runtime | Java | 21 (LTS) |
-| Back-end framework | Spring Boot | 3.5.12 |
-| Virtual Threads | Proyecto Loom | Java 21 (habilitado por config) |
-| Persistencia | SQLite + Spring Data JPA | sqlite-jdbc 3.46.x |
-| Migraciones | Flyway | 10.x (SQLite dialect) |
-| Mapeo | MapStruct | 1.5.5 |
-| Boilerplate | Lombok | 1.18.30 |
-| Documentación API | SpringDoc OpenAPI | 2.6.0 |
-| Build | Maven Wrapper | 3.9.x |
-| Testing BE | JUnit 5, Mockito, AssertJ | Spring Boot test slice |
-| Front-end framework | React | 19 |
-| Build front-end | Vite | 6.x |
-| Lenguaje FE | TypeScript | 5.x |
-| Estilos | TailwindCSS | 4.x |
-| HTTP client | Axios | 1.x |
-| Estado servidor | React Query (TanStack) | 5.x |
-| Testing FE | Vitest + React Testing Library | — |
-
----
-
-## 15. Estructura de Proyecto
+### 8.1 Flujo de aterrizaje (al abrir la app)
 
 ```
-insurance-crm/
-├── back-end/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/insurancecrm/
-│   │   │   │   ├── InsuranceCrmApplication.java
-│   │   │   │   ├── api/
-│   │   │   │   │   ├── controller/
-│   │   │   │   │   │   ├── PolicyController.java
-│   │   │   │   │   │   └── ClientController.java
-│   │   │   │   │   ├── dto/
-│   │   │   │   │   │   ├── PolicyResponse.java   ← record
-│   │   │   │   │   │   ├── RenewRequest.java     ← record
-│   │   │   │   │   │   └── ContactRequest.java   ← record
-│   │   │   │   │   └── exception/
-│   │   │   │   │       └── GlobalExceptionHandler.java
-│   │   │   │   ├── application/
-│   │   │   │   │   └── service/
-│   │   │   │   │       ├── PolicyService.java
-│   │   │   │   │       └── ClientService.java
-│   │   │   │   ├── domain/
-│   │   │   │   │   ├── model/
-│   │   │   │   │   │   ├── Policy.java
-│   │   │   │   │   │   ├── Client.java
-│   │   │   │   │   │   └── PolicyStatus.java    ← enum
-│   │   │   │   │   └── service/
-│   │   │   │   │       └── PolicyExpirationService.java
-│   │   │   │   └── infrastructure/
-│   │   │   │       ├── persistence/
-│   │   │   │       │   ├── entity/
-│   │   │   │       │   │   ├── PolicyEntity.java
-│   │   │   │       │   │   └── ClientEntity.java
-│   │   │   │       │   └── repository/
-│   │   │   │       │       ├── PolicyJpaRepository.java
-│   │   │   │       │       └── ClientJpaRepository.java
-│   │   │   │       ├── mapper/
-│   │   │   │       │   └── PolicyMapper.java    ← MapStruct
-│   │   │   │       └── seeder/
-│   │   │   │           └── DataSeeder.java
-│   │   │   └── resources/
-│   │   │       ├── application.yml
-│   │   │       └── db/migration/
-│   │   │           ├── V1__create_clients_table.sql
-│   │   │           ├── V2__create_policies_table.sql
-│   │   │           └── V3__seed_sample_data.sql
-│   │   └── test/
-│   │       └── java/com/insurancecrm/
-│   │           ├── api/controller/
-│   │           │   └── PolicyControllerTest.java
-│   │           ├── application/service/
-│   │           │   └── PolicyServiceTest.java
-│   │           └── domain/service/
-│   │               └── PolicyExpirationServiceTest.java
-│   └── pom.xml
-│
-├── front-end/
-│   ├── src/
-│   │   ├── api/
-│   │   │   ├── policiesApi.ts
-│   │   │   └── clientsApi.ts
-│   │   ├── components/
-│   │   │   ├── Dashboard/
-│   │   │   ├── PolicyCard/
-│   │   │   ├── PolicyStatusBadge/
-│   │   │   ├── ContactModal/
-│   │   │   ├── RenewModal/
-│   │   │   └── OfflineBanner/
-│   │   ├── hooks/
-│   │   │   ├── usePolicies.ts
-│   │   │   └── useSyncQueue.ts
-│   │   ├── services/
-│   │   │   └── syncService.ts
-│   │   ├── types/
-│   │   │   └── policy.types.ts
-│   │   └── App.tsx
-│   ├── package.json
-│   └── vite.config.ts
-│
-└── README.md
+1. Usuario abre http://localhost:5000
+2. Flask sirve index.html
+3. app.js hace GET /api/v1/policies (sin filtro)
+4. Backend calcula prioridades (critica, alerta, ok, perdida)
+5. Frontend renderiza tabla ordenada:
+   ┌─ CRÍTICAS ─────────────────────────────┐
+   │ ⚠️ Póliza vencida - quedan 18 días     │  ← ROJO
+   ├─ ALERTA ───────────────────────────────┤
+   │ 🔔 Póliza por vencer en 15 días        │  ← AMARILLO
+   ├─ VIGENTES ─────────────────────────────┤
+   │ ✅ Póliza vigente hasta 2027-01-15     │  ← VERDE
+   ├─ PERDIDAS ─────────────────────────────┤
+   │ ❌ Póliza vencida - ventana vencida    │  ← NEGRO
+   └─────────────────────────────────────────┘
+6. María VE de inmediato lo que tiene que hacer
+```
+
+### 8.2 Flujo de gestión (contacto telefónico)
+
+```
+1. María ve una póliza en estado crítico o alerta
+2. Toma el teléfono y llama al cliente (el número está visible)
+3. Hace la gestión comercial
+4. Hunde clic en botón "📞 Contactado"
+5. app.js → PATCH /api/v1/policies/{id}/contact
+6. Backend actualiza last_contact_date
+7. Frontend refresca y muestra el badge "Contactado hoy"
+8. Opcional: escribe notas sobre la gestión
+```
+
+### 8.3 Flujo de cierre (renovación)
+
+```
+1. El cliente acepta renovar
+2. María identifica la póliza en el dashboard
+3. Hunde clic en "🔄 Renovar"
+4. Aparece un modal/modalito pidiendo la nueva fecha
+5. Ingresa la fecha (ej: 2027-05-15 para renovación anual)
+6. app.js → POST /api/v1/policies/{id}/renew
+7. Backend:
+   a. Valida que la nueva fecha sea posterior
+   b. Actualiza status = "renovada"
+   c. Actualiza expiration_date
+   d. Actualiza last_contact_date
+8. Frontend refresca: la póliza pasa a estado verde ✅
+```
+
+### 8.4 Flujo de "No renovó"
+
+```
+1. El cliente dice que no va a renovar
+2. María hunde clic en "❌ No renovó"
+3. app.js → PATCH /api/v1/policies/{id}/status (status: "no_renovo")
+4. Backend actualiza el estado
+5. La póliza se mueve a la sección "Perdidas" (negra)
+6. María puede enfocarse en las que SÍ se pueden salvar
 ```
 
 ---
 
-## 16. Quick Start (Sin Docker)
+## 9. Seed data
 
-### Requisitos
+### 9.1 Estrategia
 
-- Java 21 JDK ([Adoptium Temurin](https://adoptium.net/))
-- Node.js 22 LTS + npm
+Para que la aplicación se vea **realista desde el segundo cero**,
+el script `seed.py` genera:
 
-### Pasos
+| Tipo | Cantidad | Detalle |
+|------|----------|---------|
+| Clientes | **280** | Nombres colombianos realistas, teléfonos, emails |
+| Pólizas de auto | ~220 | Principal ramo. Varias aseguradoras colombianas |
+| Pólizas de hogar | ~40 | Segundas pólizas de algunos clientes |
+| Pólizas de vida | ~30 | Clientes con múltiples productos |
+| Pólizas SOAT | ~30 | Seguro obligatorio |
+| **Total pólizas** | **~320** | Algunos clientes tienen 2+ pólizas |
 
-```bash
-# 1. Clonar
-git clone <repo-url> insurance-contractor-crm
-cd insurance-contractor-crm
+### 9.2 Distribución de escenarios
 
-# 2. Back-end (inicia en puerto 8080)
-cd back-end
-./mvnw spring-boot:run
-# SQLite se crea automáticamente en ./data/insurance_crm.db
-# Seed data se carga al primer inicio
+| Escenario | Cantidad | Propósito |
+|-----------|----------|-----------|
+| Vencidas en ventana 30 días (crítica) | 3-5 | Probar que aparecen primero, en rojo |
+| Por vencer en ≤ 30 días (alerta) | 5-8 | Probar alerta temprana |
+| Vigentes (OK) | ~290 | La mayoría — cartera sana |
+| Vencidas +30 días (perdidas) | 2-3 | Probar que se marcan como pérdidas |
+| Renovadas recientemente | 5-8 | Probar que se ven en verde |
 
-# 3. Front-end (inicia en puerto 5173)
-cd ../front-end
-npm install
-npm run dev
+### 9.3 Aseguradoras incluidas
 
-# 4. Abrir en el navegador
-open http://localhost:5173
-```
-
-### Configuración `application.yml`
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:sqlite:./data/insurance_crm.db
-    driver-class-name: org.sqlite.JDBC
-  jpa:
-    database-platform: org.hibernate.community.dialect.SQLiteDialect
-    hibernate:
-      ddl-auto: validate        # Flyway maneja el schema
-  flyway:
-    enabled: true
-  threads:
-    virtual:
-      enabled: true             # Java 21 Virtual Threads
-
-server:
-  port: 8080
-
-logging:
-  level:
-    com.insurancecrm: DEBUG
-```
+| Aseguradora | Tipo |
+|-------------|------|
+| Sura | Auto, Hogar, Vida, SOAT |
+| Bolívar | Auto, Hogar, Vida |
+| Mapfre | Auto, SOAT |
+| Seguros del Estado | Auto, SOAT |
+| AXA Colpatria | Auto, Hogar, Vida |
+| Liberty | Auto, Hogar |
+| Allianz | Auto, Vida |
+| La Previsora | SOAT, Auto |
+| Equidad | Auto, Hogar |
+| Colseguros | Auto, Vida |
 
 ---
 
-## 17. Decisiones Técnicas y Trade-offs
+## 10. Trade-offs y decisiones técnicas
 
-| Decisión | Alternativa considerada | Por qué esta |
-|----------|------------------------|--------------|
-| **SQLite** en vez de PostgreSQL | PostgreSQL local, H2 | Portabilidad máxima — corre sin Docker. Un archivo = toda la base de datos. Suficiente para 280 clientes. |
-| **Virtual Threads** (Java 21) | Reactive WebFlux | Más simple, Spring MVC estándar. Misma eficiencia para I/O-bound sin cambiar el modelo de programación. |
-| **React 19 + Vite** en vez de Angular | Angular 19 | El evaluador/asesor solo ve una pantalla. React es más liviano para un MVP de una sola vista. Angular es la elección correcta si el proyecto escala. |
-| **React Query** en vez de Redux | Zustand, Context API | El estado es principalmente "datos del servidor". React Query elimina el boilerplate de loading/error/cache. |
-| **Sin auth** | JWT básico | El MVP valida la solución de negocio, no la seguridad. Auth es la siguiente historia de usuario documentada. |
-| **Records Java** para DTOs | Clases con Lombok | Inmutabilidad, equals/hashCode/toString gratis, más expresivos. |
-| **MapStruct** para mapeos | ModelMapper, manual | Type-safe, performance en compile-time, sin reflection. |
-| **Flyway** para migraciones | Liquibase | Más simple para proyectos pequeños. Configuración mínima. |
-
----
-
-## 18. Fuera de Alcance MVP
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  FUTURAS HISTORIAS DE USUARIO (post-MVP)                    │
-├─────────────────────────────────────────────────────────────┤
-│  US-02  │ Autenticación JWT (multi-asesor)                  │
-│  US-03  │ Notificaciones push / email automáticos           │
-│  US-04  │ Integración con APIs de aseguradoras              │
-│  US-05  │ Reportes de gestión (tasa de renovación, etc.)    │
-│  US-06  │ App móvil con Ionic + Capacitor                   │
-│  US-07  │ Multi-tenancy (agencia con N asesores)            │
-│  US-08  │ Historial completo de gestión por póliza          │
-│  US-09  │ Importación desde Excel (migración de datos)      │
-│  US-10  │ Módulo de consumo de API de aseguradora + login   │
-└─────────────────────────────────────────────────────────────┘
-```
+| Decisión | Alternativa considerada | Por qué se eligió esta |
+|----------|------------------------|----------------------|
+| **Flask vs FastAPI** | FastAPI (async, Pydantic, OpenAPI) | Flask es más simple, menos conceptos. Para un MVP de 3 endpoints, FastAPI agrega complejidad innecesaria. El evaluador puede centrarse en la lógica de negocio. |
+| **sqlite3 vs SQLAlchemy** | SQLAlchemy (ORM completo) | sqlite3 es parte de la stdlib de Python. Cero dependencias extra. Para 2 tablas y consultas simples, un ORM es sobreingeniería. |
+| **CSS puro vs Bootstrap** | Bootstrap 5 | CSS puro = cero dependencias, cero descargas, cero fricción. El diseño es simple (una tabla + botones). Bootstrap agregaría ~150KB por un layout que se hace en 50 líneas de CSS Grid. |
+| **Fetch API vs Axios** | Axios (más ergonómico) | Fetch es nativo del browser. Cero dependencias. Para 3 llamadas GET/PATCH/POST, la ergonomía extra de Axios no justifica agregar una librería. |
+| **SVG icons vs Font Awesome** | Font Awesome | Los SVG son inline, no requieren descarga de fuentes, y son totalmente accesibles con etiquetas `<title>` y `role="img"`. |
+| **PATCH vs PUT para contacto** | PUT (reemplazo completo) | PATCH es semánticamente correcto: solo actualizamos `last_contact_date`, no reemplazamos todo el recurso. |
+| **Datos en español vs inglés** | Tablas y endpoints en inglés | El modelo de datos sigue la convención del snippet de la prueba (inglés). Los comentarios de código van en español colombiano. Mejor práctica: código en inglés, documentación y comentarios en español. |
 
 ---
 
-## 19. Historias de Usuario
+## 11. Tests: casos críticos
 
-### US-01 (MVP) — Dashboard de Renovaciones
+Se implementarán **3 tests** que cubren el caso más crítico del negocio:
+**la ventana de 30 días para renovación de pólizas vencidas**.
 
-**Como** asesora de seguros,
-**quiero** ver mis pólizas ordenadas por urgencia en una pantalla,
-**para** saber exactamente a quién llamar hoy sin buscar en Excel.
-
-**Criterios de aceptación:**
-- [ ] Las pólizas se muestran agrupadas: En gracia / Por vencer / Vigentes / Archivadas
-- [ ] Los colores son accesibles (WCAG 2.1 AA), no dependen solo del color
-- [ ] El número de días restantes/vencidos es visible en cada tarjeta
-- [ ] La lista carga en menos de 1 segundo para 280 pólizas
-
-### US-01b (MVP) — Registrar Contacto
-
-**Como** asesora,
-**quiero** marcar en un clic que llamé a un cliente,
-**para** no perder el registro de qué hice y cuándo.
-
-**Criterios de aceptación:**
-- [ ] El botón "Contactar" abre un modal con campo de notas opcional
-- [ ] Tras confirmar, la tarjeta muestra "Contactado + fecha/hora"
-- [ ] La acción se guarda aunque no haya internet
-
-### US-01c (MVP) — Registrar Renovación
-
-**Como** asesora,
-**quiero** registrar la nueva fecha de vencimiento cuando un cliente renueva,
-**para** que la póliza pase a estado verde y salga de la lista de urgentes.
-
-**Criterios de aceptación:**
-- [ ] El campo de nueva fecha tiene default en `+1 año` editable
-- [ ] La fecha no puede ser en el pasado
-- [ ] La póliza regresa a estado VERDE tras renovar
-- [ ] Si no hay internet, la renovación se guarda y sincroniza al reconectar
+| # | Test | Qué valida | Por qué es crítico |
+|---|------|-----------|-------------------|
+| 1 | `test_prioridad_critica_dentro_ventana_30_dias` | Una póliza vencida hace 12 días debe tener prioridad `critica` | María DEBE ver esto primero. Si no, pierde clientes. |
+| 2 | `test_prioridad_perdida_fuera_ventana_30_dias` | Una póliza vencida hace 35 días debe tener prioridad `perdida` | María no debe perder tiempo en lo que ya no se puede salvar. |
+| 3 | `test_renovacion_actualiza_estado_y_fecha` | Renovar cambia `status` a `renovada` y actualiza `expiration_date` | El flujo de cierre debe funcionar correctamente. Si falla, María anota mal las renovaciones. |
 
 ---
 
-## 20. Criterios de Aceptación (Definition of Done)
+## 12. Checklist de autoevaluación
 
-- [ ] `./mvnw clean verify` pasa sin errores
-- [ ] `npm run build` pasa sin errores
-- [ ] Cobertura de tests back-end ≥ 80% en paquetes de dominio y servicio
-- [ ] API documentada en `/swagger-ui.html`
-- [ ] Seed data visible al primer inicio sin configuración manual
-- [ ] Funciona con `./mvnw spring-boot:run` + `npm run dev` (sin Docker)
-- [ ] Colores verificados con WebAIM Contrast Checker
-- [ ] Navegación por teclado funcional en dashboard y modales
-- [ ] Offline: renovación guardada y sincronizada al reconectar
-- [ ] Sin datos sensibles en logs
-- [ ] Commits en formato `<tipo>(<scope>): <descripción>` (Conventional Commits)
+Antes de dar por terminado el MVP:
 
----
-
-## 21. GitFlow
-
-```
-main
-  └─ release/0.1.0
-       └─ develop
-            ├─ feature/ymanrique/backend-mvp-implementation
-            └─ feature/ymanrique/frontend-mvp-implementation
-```
-
-**Reglas:**
-- No commits directos en `main` ni `develop`
-- PRs con checklist cumplida antes de merge
-- Un PR por historia de usuario o módulo significativo
-- Mensajes de commit: `feat(policy): agregar endpoint de renovación`
+- [ ] `pip install -r requirements.txt` funciona en máquina limpia
+- [ ] `python src/app.py` levanta el servidor en puerto 5000
+- [ ] `GET /api/v1/policies` retorna datos priorizados
+- [ ] `PATCH /api/v1/policies/{id}/contact` registra contacto
+- [ ] `POST /api/v1/policies/{id}/renew` procesa renovación
+- [ ] Pantalla única muestra semáforo con iconos
+- [ ] Seed data genera 280+ clientes y 300+ pólizas
+- [ ] 3 tests pasan: `pytest tests/ -v`
+- [ ] Código backend comentado en español colombiano
+- [ ] `spec.md`, `README.md`, `code_review.md` y `ai_history/` presentes
+- [ ] Sin Docker, sin servicios cloud, sin credenciales externas
 
 ---
 
-*Este documento es un artefacto vivo. Actualizar a medida que el desarrollo avanza.*
-
-*MIT © 2026 Yadin Paulo Manrique Márquez*
+> **Documento versionado:** 1.0
+> **Autor:** Yadin Paulo Manrique Márquez + OpenCode
+> **Propósito:** Especificación técnica del MVP para prueba técnica Agentemotor

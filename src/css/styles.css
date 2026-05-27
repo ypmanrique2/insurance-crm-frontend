@@ -1,0 +1,751 @@
+/* ══════════════════════════════════════════════════════════════
+   styles.css — Sistema de diseño del Insurance Contractor CRM
+   
+   CSS3 PURO. Sin preprocesadores, sin frameworks.
+   Layout: CSS Grid + Flexbox.
+   Sistema de diseño: CSS Custom Properties (variables).
+   
+   Diseñado para que María (y cualquier asesor) pueda usar la
+   herramienta sin fricción, incluso en tablets o pantallas
+   pequeñas.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ──────────────────────────────────────────────────────────────
+   1. VARIABLES DEL SISTEMA DE DISEÑO
+   Acá centralizamos colores, tipografía, espaciado y sombras
+   para mantener consistencia en toda la interfaz.
+   ────────────────────────────────────────────────────────────── */
+:root {
+    /* ─── Colores del semáforo (prioridad) ─────────────────── */
+    --color-critico:    #dc2626;
+    --color-critico-bg: #fef2f2;
+    --color-critico-border: #fecaca;
+
+    --color-alerta:     #d97706;
+    --color-alerta-bg:  #fffbeb;
+    --color-alerta-border: #fde68a;
+
+    --color-ok:         #16a34a;
+    --color-ok-bg:      #f0fdf4;
+    --color-ok-border:  #bbf7d0;
+
+    --color-perdido:    #475569;
+    --color-perdido-bg: #f8fafc;
+    --color-perdido-border: #e2e8f0;
+
+    /* ─── Colores neutros ──────────────────────────────────── */
+    --color-bg:         #f1f5f9;
+    --color-surface:    #ffffff;
+    --color-texto:      #0f172a;
+    --color-texto-sec:  #64748b;
+    --color-borde:      #e2e8f0;
+    --color-borde-forte: #cbd5e1;
+
+    /* ─── Colores de botones ───────────────────────────────── */
+    --color-btn-primary:     #2563eb;
+    --color-btn-primary-hover: #1d4ed8;
+    --color-btn-contact:     #0891b2;
+    --color-btn-contact-hover: #0e7490;
+    --color-btn-renew:       #16a34a;
+    --color-btn-renew-hover: #15803d;
+    --color-btn-danger:      #dc2626;
+    --color-btn-danger-hover: #b91c1c;
+
+    /* ─── Tipografía ───────────────────────────────────────── */
+    --font-family:    system-ui, -apple-system, 'Segoe UI', Roboto,
+                      'Helvetica Neue', sans-serif;
+    --font-size-base: 16px;
+    --font-size-sm:   0.8125rem;
+    --font-size-md:   0.9375rem;
+    --font-size-lg:   1.125rem;
+    --font-size-xl:   1.5rem;
+    --font-size-2xl:  2rem;
+
+    /* ─── Espaciado (escala de 4px) ────────────────────────── */
+    --space-1: 0.25rem;  /*  4px */
+    --space-2: 0.5rem;   /*  8px */
+    --space-3: 0.75rem;  /* 12px */
+    --space-4: 1rem;     /* 16px */
+    --space-5: 1.5rem;   /* 24px */
+    --space-6: 2rem;     /* 32px */
+    --space-8: 3rem;     /* 48px */
+
+    /* ─── Bordes y sombras ─────────────────────────────────── */
+    --border-radius-sm: 4px;
+    --border-radius:    8px;
+    --border-radius-lg: 12px;
+    --shadow-sm:  0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md:  0 4px 6px -1px rgba(0,0,0,0.1);
+    --shadow-lg:  0 10px 15px -3px rgba(0,0,0,0.1);
+
+    /* ─── Transiciones ─────────────────────────────────────── */
+    --transition: 150ms ease-in-out;
+    --transition-slow: 250ms ease-in-out;
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   2. RESET Y ESTILOS BASE
+   Normalizamos el CSS para que se vea consistente en todos los
+   navegadores modernos.
+   ────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    font-family: var(--font-family);
+    color: var(--color-texto);
+    background: var(--color-bg);
+    min-height: 100vh;
+    padding: var(--space-4);
+}
+
+/* ─── Accesibilidad: foco visible ─────────────────────────── */
+:focus-visible {
+    outline: 2px solid var(--color-btn-primary);
+    outline-offset: 2px;
+    border-radius: var(--border-radius-sm);
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   3. CABECERA
+   Título + resumen numérico de la cartera.
+   ────────────────────────────────────────────────────────────── */
+.cabecera {
+    max-width: 1200px;
+    margin: 0 auto var(--space-5);
+    background: var(--color-surface);
+    border-radius: var(--border-radius-lg);
+    padding: var(--space-5) var(--space-6);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.cabecera-titulo h1 {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-texto);
+}
+
+.icono-cabecera {
+    color: var(--color-btn-primary);
+    flex-shrink: 0;
+}
+
+.subtitulo {
+    font-size: var(--font-size-sm);
+    color: var(--color-texto-sec);
+    margin-top: var(--space-1);
+}
+
+/* ─── Resumen numérico ────────────────────────────────────── */
+.resumen {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.resumen-item {
+    text-align: center;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--border-radius);
+    min-width: 70px;
+    background: var(--color-bg);
+}
+
+.resumen-numero {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.resumen-etiqueta {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-texto-sec);
+    margin-top: var(--space-1);
+}
+
+.resumen-critico .resumen-numero { color: var(--color-critico); }
+.resumen-alerta  .resumen-numero { color: var(--color-alerta); }
+.resumen-ok      .resumen-numero { color: var(--color-ok); }
+.resumen-perdido .resumen-numero { color: var(--color-perdido); }
+
+
+/* ──────────────────────────────────────────────────────────────
+   4. FILTROS
+   Selectores para filtrar pólizas por prioridad, estado o ramo.
+   ────────────────────────────────────────────────────────────── */
+.filtros {
+    max-width: 1200px;
+    margin: 0 auto var(--space-5);
+    background: var(--color-surface);
+    border-radius: var(--border-radius);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-4);
+}
+
+.filtros-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 150px;
+}
+
+.filtro-etiqueta {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-texto-sec);
+}
+
+.filtro-select {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-md);
+    font-family: var(--font-family);
+    background: var(--color-surface);
+    color: var(--color-texto);
+    cursor: pointer;
+    transition: border-color var(--transition);
+}
+
+.filtro-select:hover {
+    border-color: var(--color-borde-forte);
+}
+
+.filtro-select:focus-visible {
+    border-color: var(--color-btn-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   5. ESTADOS DE CARGA / ERROR
+   ────────────────────────────────────────────────────────────── */
+.estado-carga,
+.estado-error {
+    max-width: 1200px;
+    margin: 0 auto var(--space-5);
+    padding: var(--space-8);
+    text-align: center;
+    background: var(--color-surface);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+    font-size: var(--font-size-lg);
+    color: var(--color-texto-sec);
+}
+
+.estado-error {
+    border: 2px solid var(--color-critico-border);
+    background: var(--color-critico-bg);
+    color: var(--color-critico);
+}
+
+.error-detalle {
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-2);
+    color: var(--color-texto-sec);
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   6. BOTONES (sistema consistente)
+   Todos los botones comparten la misma base y se diferencian
+   por clase semántica.
+   ────────────────────────────────────────────────────────────── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: all var(--transition);
+    min-height: 44px;  /* WCAG touch target */
+    white-space: nowrap;
+}
+
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+
+.btn-primario {
+    background: var(--color-btn-primary);
+    color: white;
+}
+.btn-primario:hover {
+    background: var(--color-btn-primary-hover);
+}
+
+.btn-secundario {
+    background: var(--color-bg);
+    color: var(--color-texto);
+    border: 1px solid var(--color-borde);
+}
+.btn-secundario:hover {
+    background: var(--color-borde);
+}
+
+.btn-contactar {
+    background: var(--color-btn-contact);
+    color: white;
+    font-size: var(--font-size-sm);
+}
+.btn-contactar:hover {
+    background: var(--color-btn-contact-hover);
+}
+
+.btn-renovar {
+    background: var(--color-btn-renew);
+    color: white;
+    font-size: var(--font-size-sm);
+}
+.btn-renovar:hover {
+    background: var(--color-btn-renew-hover);
+}
+
+.btn-no-renovo {
+    background: var(--color-btn-danger);
+    color: white;
+    font-size: var(--font-size-sm);
+}
+.btn-no-renovo:hover {
+    background: var(--color-btn-danger-hover);
+}
+
+.btn-deshabilitado,
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   7. LISTADO DE PÓLIZAS (el corazón del dashboard)
+   Cada sección de prioridad es un grupo visual con su color.
+   ────────────────────────────────────────────────────────────── */
+#lista-politicas {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.grupo-prioridad {
+    background: var(--color-surface);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--space-5);
+    overflow: hidden;
+}
+
+/* ─── Cabecera del grupo ──────────────────────────────────── */
+.grupo-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    border-bottom: 2px solid transparent;
+}
+
+.grupo-header .grupo-conteo {
+    font-size: var(--font-size-sm);
+    font-weight: 400;
+    opacity: 0.8;
+    margin-left: auto;
+}
+
+/* Colores de cada grupo */
+.grupo-critica .grupo-header {
+    background: var(--color-critico-bg);
+    color: var(--color-critico);
+    border-bottom-color: var(--color-critico-border);
+}
+
+.grupo-alerta .grupo-header {
+    background: var(--color-alerta-bg);
+    color: var(--color-alerta);
+    border-bottom-color: var(--color-alerta-border);
+}
+
+.grupo-ok .grupo-header {
+    background: var(--color-ok-bg);
+    color: var(--color-ok);
+    border-bottom-color: var(--color-ok-border);
+}
+
+.grupo-perdida .grupo-header {
+    background: var(--color-perdido-bg);
+    color: var(--color-perdido);
+    border-bottom-color: var(--color-perdido-border);
+}
+
+/* ─── Tarjeta individual de cada póliza ────────────────────── */
+.poliza-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-borde);
+    transition: background var(--transition);
+}
+
+.poliza-card:last-child {
+    border-bottom: none;
+}
+
+.poliza-card:hover {
+    background: var(--color-bg);
+}
+
+/* Icono de prioridad */
+.poliza-icono {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.25rem;
+}
+
+.poliza-critica .poliza-icono {
+    background: var(--color-critico-bg);
+    color: var(--color-critico);
+}
+
+.poliza-alerta .poliza-icono {
+    background: var(--color-alerta-bg);
+    color: var(--color-alerta);
+}
+
+.poliza-ok .poliza-icono {
+    background: var(--color-ok-bg);
+    color: var(--color-ok);
+}
+
+.poliza-perdida .poliza-icono {
+    background: var(--color-perdido-bg);
+    color: var(--color-perdido);
+}
+
+/* Información del cliente y póliza */
+.poliza-info {
+    flex: 1;
+    min-width: 200px;
+}
+
+.poliza-cliente {
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.poliza-telefono {
+    font-weight: 400;
+    font-size: var(--font-size-sm);
+    color: var(--color-btn-primary);
+    text-decoration: none;
+}
+
+.poliza-telefono:hover {
+    text-decoration: underline;
+}
+
+.poliza-detalles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-texto-sec);
+}
+
+.poliza-detalle-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.poliza-detalle-item strong {
+    color: var(--color-texto);
+    font-weight: 600;
+}
+
+/* Badge de fecha */
+.poliza-fecha-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    border-radius: 9999px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.badge-critico {
+    background: var(--color-critico-bg);
+    color: var(--color-critico);
+    border: 1px solid var(--color-critico-border);
+}
+
+.badge-alerta {
+    background: var(--color-alerta-bg);
+    color: var(--color-alerta);
+    border: 1px solid var(--color-alerta-border);
+}
+
+.badge-ok {
+    background: var(--color-ok-bg);
+    color: var(--color-ok);
+    border: 1px solid var(--color-ok-border);
+}
+
+.badge-perdido {
+    background: var(--color-perdido-bg);
+    color: var(--color-perdido);
+    border: 1px solid var(--color-perdido-border);
+}
+
+/* Último contacto registrado */
+.poliza-contacto {
+    font-size: var(--font-size-sm);
+    color: var(--color-texto-sec);
+    margin-top: var(--space-1);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.contacto-reciente {
+    color: var(--color-ok);
+    font-weight: 600;
+}
+
+/* Acción recomendada */
+.poliza-accion-rec {
+    font-size: var(--font-size-sm);
+    color: var(--color-texto-sec);
+    margin-top: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-bg);
+    border-radius: var(--border-radius-sm);
+    width: 100%;
+}
+
+/* ─── Acciones de la póliza (botones) ─────────────────────── */
+.poliza-acciones {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   8. MODAL DE RENOVACIÓN
+   Usamos <dialog> nativo de HTML5. Compatible con Chrome, Firefox,
+   Edge, Safari 15.4+.
+   ────────────────────────────────────────────────────────────── */
+.modal {
+    border: none;
+    border-radius: var(--border-radius-lg);
+    padding: 0;
+    box-shadow: var(--shadow-lg);
+    max-width: 480px;
+    width: 90vw;
+}
+
+.modal::backdrop {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+}
+
+.modal-contenido {
+    padding: var(--space-6);
+}
+
+.modal-titulo {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    margin-bottom: var(--space-2);
+}
+
+.modal-politica {
+    font-size: var(--font-size-md);
+    color: var(--color-texto-sec);
+    margin-bottom: var(--space-5);
+    padding: var(--space-3);
+    background: var(--color-bg);
+    border-radius: var(--border-radius);
+}
+
+/* ─── Formulario del modal ────────────────────────────────── */
+.modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.form-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.form-etiqueta {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+}
+
+.form-input {
+    padding: var(--space-3);
+    border: 2px solid var(--color-borde);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-lg);
+    font-family: var(--font-family);
+    transition: border-color var(--transition);
+}
+
+.form-input:focus {
+    border-color: var(--color-btn-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.form-ayuda {
+    font-size: var(--font-size-sm);
+    color: var(--color-texto-sec);
+}
+
+.modal-acciones {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+    margin-top: var(--space-2);
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   9. RESPONSIVIDAD
+   Adaptamos el layout para pantallas pequeñas (tablets, celus).
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    body { padding: var(--space-2); }
+
+    .cabecera {
+        padding: var(--space-4);
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+
+    .cabecera-titulo h1 {
+        justify-content: center;
+    }
+
+    .resumen {
+        justify-content: center;
+    }
+
+    .resumen-item {
+        min-width: 55px;
+        padding: var(--space-1) var(--space-2);
+    }
+
+    .resumen-numero {
+        font-size: var(--font-size-xl);
+    }
+
+    .filtros {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filtros-grupo {
+        min-width: auto;
+    }
+
+    .poliza-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+
+    .poliza-acciones {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .poliza-acciones .btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .modal {
+        width: 95vw;
+    }
+
+    .modal-acciones {
+        flex-direction: column;
+    }
+
+    .modal-acciones .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .resumen {
+        gap: var(--space-2);
+    }
+
+    .resumen-item {
+        min-width: 45px;
+        padding: var(--space-1);
+    }
+
+    .resumen-numero {
+        font-size: var(--font-size-lg);
+    }
+
+    .poliza-detalles {
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+}
