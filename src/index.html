@@ -17,20 +17,23 @@
 <body>
 
     <!-- =========================================================
-    CABECERA: Resumen visual de la cartera de María.
-    Muestra el total de pólizas desglosado por prioridad.
+    CABECERA: Resumen visual de la cartera del asesor.
+    El título y subtítulo se actualizan dinámicamente desde app.js
+    con los datos que devuelve la API (total_clients).
     ========================================================= -->
     <header class="cabecera" id="cabecera">
         <div class="cabecera-titulo">
-            <h1>
+            <h1 id="cabecera-titulo">
                 <!-- Icono decorativo inline SVG para la cabecera -->
                 <svg class="icono-cabecera" width="32" height="32" viewBox="0 0 24 24"
                      aria-hidden="true" focusable="false">
                     <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/>
                 </svg>
-                Cartera de María
+                Mi Cartera
             </h1>
-            <p class="subtitulo">280 clientes activos · Gestión de renovaciones</p>
+            <p class="subtitulo" id="cabecera-subtitulo">
+                Cargando datos...
+            </p>
         </div>
 
         <!-- Resumen numérico: se actualiza dinámicamente desde app.js -->
@@ -98,7 +101,12 @@
         </div>
 
         <button class="btn btn-primario" id="btn-aplicar-filtros" type="button">
-            Aplicar filtros
+            🔍 Aplicar filtros
+        </button>
+
+        <button class="btn btn-exportar" id="btn-exportar-csv" type="button"
+                title="Descargar CSV con los filtros actuales">
+            📥 Exportar CSV
         </button>
     </section>
 
@@ -106,7 +114,7 @@
     MENSAJE DE CARGA: Se muestra mientras se obtienen datos.
     ========================================================= -->
     <div id="estado-carga" class="estado-carga" aria-live="polite">
-        Cargando cartera de María...
+        Cargando cartera del asesor...
     </div>
 
     <!-- =========================================================

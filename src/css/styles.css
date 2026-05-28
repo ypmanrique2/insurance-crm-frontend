@@ -314,6 +314,18 @@ body {
     background: var(--color-borde);
 }
 
+.btn-exportar {
+    background: transparent;
+    color: var(--color-texto-sec);
+    border: 1px dashed var(--color-borde-forte);
+    font-size: var(--font-size-sm);
+}
+.btn-exportar:hover {
+    color: var(--color-texto);
+    border-color: var(--color-texto-sec);
+    background: var(--color-bg);
+}
+
 .btn-contactar {
     background: var(--color-btn-contact);
     color: white;

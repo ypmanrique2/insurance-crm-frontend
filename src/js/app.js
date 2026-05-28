@@ -68,6 +68,7 @@ const dom = {
     filtroEstado:    $('#filtro-estado'),
     filtroTipo:      $('#filtro-tipo'),
     btnAplicar:      $('#btn-aplicar-filtros'),
+    btnExportar:     $('#btn-exportar-csv'),
     btnReintentar:   $('#btn-reintentar'),
     modal:           $('#modal-renovar'),
     modalInfo:       $('#modal-politica-info'),
@@ -102,6 +103,11 @@ function configurarEventos() {
     // Botón "Aplicar filtros"
     dom.btnAplicar.addEventListener('click', () => {
         aplicarFiltros();
+    });
+
+    // Botón "Exportar CSV"
+    dom.btnExportar.addEventListener('click', () => {
+        exportarCSV();
     });
 
     // Botón "Reintentar" (cuando hay error)
@@ -196,6 +202,36 @@ function aplicarFiltros() {
         tipo:      dom.filtroTipo.value,
     };
     cargarPoliticas(filtros);
+}
+
+
+// ──────────────────────────────────────────────────────────────
+// EXPORTAR A CSV
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * Descarga las pólizas como archivo CSV respetando los filtros
+ * que están activos en el dashboard.
+ *
+ * Usa window.location.href para que el navegador maneje la
+ * descarga como una navegación directa al endpoint, que
+ * responde con Content-Disposition: attachment.
+ */
+function exportarCSV() {
+    // Construimos los mismos filtros que están activos
+    const params = new URLSearchParams();
+
+    const prioridad = dom.filtroPrioridad.value;
+    const estado = dom.filtroEstado.value;
+    const tipo = dom.filtroTipo.value;
+
+    if (prioridad && prioridad !== 'todos') params.set('priority', prioridad);
+    if (estado && estado !== 'todos') params.set('status', estado);
+    if (tipo && tipo !== 'todos') params.set('policy_type', tipo);
+
+    // Navegamos al endpoint de descarga
+    const url = `${API_BASE_URL}/policies/export/csv?${params.toString()}`;
+    window.location.href = url;
 }
 
 
@@ -620,13 +656,23 @@ async function marcarNoRenovo(policyId) {
 
 /**
  * Actualiza los números del resumen en la cabecera.
+ * También refresca el subtítulo con el total de clientes
+ * real desde la BD, en vez de un número hardcodeado.
  */
 function actualizarResumen(data) {
+    // ─── Conteos de pólizas por prioridad ──────────────────
     dom.resumenTotal.textContent = data.total || 0;
     dom.resumenCriticas.textContent = data.criticas || 0;
     dom.resumenAlerta.textContent = data.alerta || 0;
     dom.resumenOk.textContent = data.ok || 0;
     dom.resumenPerdidas.textContent = data.perdidas || 0;
+
+    // ─── Subtítulo con conteo real de clientes ─────────────
+    const subtitle = document.getElementById('cabecera-subtitulo');
+    if (subtitle) {
+        const totalClientes = data.total_clientes || 0;
+        subtitle.textContent = `${totalClientes} clientes activos · Gestión de renovaciones`;
+    }
 }
 
 
@@ -636,7 +682,7 @@ function actualizarResumen(data) {
 
 function mostrarCarga(visible) {
     dom.estadoCarga.hidden = !visible;
-    if (!visible) dom.estadoCarga.textContent = 'Cargando cartera de María...';
+    if (!visible) dom.estadoCarga.textContent = 'Cargando cartera del asesor...';
 }
 
 function mostrarError() {
