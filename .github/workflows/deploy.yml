@@ -1,0 +1,60 @@
+# ──────────────────────────────────────────────────────────────
+# Deploy a GitHub Pages
+# Inyecta la URL de la API en index.html y publica la carpeta src/
+# ──────────────────────────────────────────────────────────────
+
+name: Deploy Frontend to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Permite ejecución manual desde Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Permite solo un deployment a la vez
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Inject API URL into index.html
+        run: |
+          # La URL del backend en Render (cambiar si es distinta)
+          API_URL="https://insurance-crm-backend.onrender.com/api/v1"
+          
+          # Reemplazamos el placeholder en index.html
+          # El index.html tiene: window.__API_URL__ = window.__API_URL__ || 'http://localhost:5000/api/v1';
+          # Lo cambiamos a: window.__API_URL__ = '${API_URL}';
+          sed -i "s|window.__API_URL__ = window.__API_URL__ || 'http://localhost:5000/api/v1';|window.__API_URL__ = '${API_URL}';|" src/index.html
+          
+          # Verificamos que se inyectó correctamente
+          grep -n "__API_URL__" src/index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./src
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

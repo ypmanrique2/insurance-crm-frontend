@@ -176,9 +176,16 @@
     </dialog>
 
     <!-- =========================================================
-    SCRIPTS: Un solo archivo JS con toda la lógica del frontend.
-    Sin frameworks, sin librerías, sin transpilación.
+    SCRIPTS: Configuración de API URL + lógica del frontend.
+    window.__API_URL__ se inyecta en build time (GitHub Actions).
+    Fallback: http://localhost:5000/api/v1 para desarrollo local.
     ========================================================= -->
+    <script>
+      // API base URL - configurable at build time via GitHub Actions
+      // En producción: https://insurance-crm-backend.onrender.com/api/v1
+      // En desarrollo: http://localhost:5000/api/v1
+      window.__API_URL__ = window.__API_URL__ || 'http://localhost:5000/api/v1';
+    </script>
     <script src="js/app.js"></script>
 </body>
 </html>

@@ -15,7 +15,9 @@
 // ──────────────────────────────────────────────────────────────
 // CONSTANTES DE LA APLICACIÓN
 // ──────────────────────────────────────────────────────────────
-const API_BASE_URL = 'http://localhost:5000/api/v1';
+// API_BASE_URL se toma de window.__API_URL__ inyectado en index.html
+// Fallback para desarrollo local: http://localhost:5000/api/v1
+const API_BASE_URL = (typeof window !== 'undefined' && window.__API_URL__) || 'http://localhost:5000/api/v1';
 
 // Mapa de emojis/iconos para cada prioridad.
 // Se usan en lugar de solo colores para cumplir con accesibilidad
