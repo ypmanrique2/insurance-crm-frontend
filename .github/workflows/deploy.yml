@@ -30,7 +30,7 @@ jobs:
       - name: Inject API URL into index.html
         run: |
           # La URL del backend en Render (cambiar si es distinta)
-          API_URL="https://insurance-crm-backend.onrender.com/api/v1"
+          API_URL="https://insurance-crm-backend-f5yw.onrender.com/api/v1"
           
           # Reemplazamos el placeholder en index.html
           # El index.html tiene: window.__API_URL__ = window.__API_URL__ || 'http://localhost:5000/api/v1';
