@@ -28,30 +28,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Inject API URL into index.html
+        env:
+          API_URL: "https://insurance-crm-backend-f5yw.onrender.com/api/v1"
         run: |
-          API_URL="https://insurance-crm-backend-f5yw.onrender.com/api/v1"
-          
-          # Escribimos script Python a archivo temporal (evita problemas YAML)
-          cat > inject_api.py << 'PYEOF'
-import re
-
+          # Python one-liner con variable de entorno (sin heredoc, sin YAML issues)
+          python3 -c "
+import os, re
+api_url = os.environ['API_URL']
 with open('src/index.html', 'r') as f:
     content = f.read()
-
-# Reemplazar placeholder por URL real
 new_content = re.sub(
-    r"window\.__API_URL__ = window\.__API_URL__ \|\| 'http://localhost:5000/api/v1';",
-    f"window.__API_URL__ = '{API_URL}';",
+    r\"window\.__API_URL__ = window\.__API_URL__ \|\| 'http://localhost:5000/api/v1';\",
+    f\"window.__API_URL__ = '{api_url}';\",
     content
 )
-
 with open('src/index.html', 'w') as f:
     f.write(new_content)
-
-print(f"✅ API URL inyectada: {API_URL}")
-PYEOF
-
-          python3 inject_api.py
+print('✅ API URL inyectada:', api_url)
+"
           
           # Verificamos que se inyectó correctamente
           grep -n "__API_URL__" src/index.html
