@@ -31,10 +31,7 @@ jobs:
         env:
           API_URL: "https://insurance-crm-backend-f5yw.onrender.com/api/v1"
         run: |
-          # sed con delimitador | (no choca con / de la URL)
-          # Reemplaza: window.__API_URL__ = window.__API_URL__ || 'http://localhost:5000/api/v1';
-          # Por:       window.__API_URL__ = 'https://insurance-crm-backend-f5yw.onrender.com/api/v1';
-          sed -i "s|window.__API_URL__ = window.__API_URL__ || 'http://localhost:5000/api/v1';|window.__API_URL__ = '${API_URL}';|" src/index.html
+          python inject_api.py "${API_URL}"
           
           # Verificamos que se inyectó correctamente
           grep -n "__API_URL__" src/index.html
