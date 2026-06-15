@@ -29,14 +29,28 @@ jobs:
 
       - name: Inject API URL into index.html
         run: |
-          # La URL del backend en Render (cambiar si es distinta)
+          # La URL del backend en Render
           API_URL="https://insurance-crm-backend-f5yw.onrender.com/api/v1"
           
-          # Reemplazamos el placeholder en index.html
-          # El index.html tiene: window.__API_URL__ = window.__API_URL__ || 'http://localhost:5000/api/v1';
-          # Lo cambiamos a: window.__API_URL__ = '${API_URL}';
-          sed -i "s|window.__API_URL__ = window.__API_URL__ || 'http://localhost:5000/api/v1';|window.__API_URL__ = '${API_URL}';|" src/index.html
-          
+          # Usamos Python para reemplazar (más robusto que sed con URLs)
+          python3 -c "
+import re
+with open('src/index.html', 'r') as f:
+    content = f.read()
+
+# Reemplazar el placeholder por la URL real
+new_content = re.sub(
+    r\"window\.__API_URL__ = window\.__API_URL__ \|\| 'http://localhost:5000/api/v1';\",
+    f\"window.__API_URL__ = '{API_URL}';\",
+    content
+)
+
+with open('src/index.html', 'w') as f:
+    f.write(new_content)
+
+print('✅ API URL inyectada:', API_URL)
+"
+
           # Verificamos que se inyectó correctamente
           grep -n "__API_URL__" src/index.html
 
